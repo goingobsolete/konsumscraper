@@ -18,7 +18,9 @@ class CategorySelector:
             
         with open(self.categories_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data.get('categories', [])
+            # Filter out "Alle Produkte" by itself
+            return [cat for cat in data.get('categories', []) 
+                   if cat != "Alle Produkte" and len(cat.split(' > ')) > 1]
 
     def _load_preferences(self) -> Set[str]:
         """Load previously selected categories"""
@@ -29,22 +31,13 @@ class CategorySelector:
             data = json.load(f)
             return set(data.get('selected_categories', []))
 
-    def save_preferences(self) -> None:
-        """Save selected categories to preferences file"""
-        data = {
-            'selected_categories': list(self.selected_categories)
-        }
-        with open(self.preferences_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-
     def select_categories(self) -> None:
         """Interactive category selection"""
         print("\nCategory Selection")
         print("-----------------")
         
-        # Get main categories (first level)
-        main_categories = {cat.split(' > ')[1] for cat in self.categories 
-                         if len(cat.split(' > ')) > 1}
+        # Get real main categories (second level)
+        main_categories = {cat.split(' > ')[1] for cat in self.categories}
         
         print("\nAvailable main categories:")
         for i, cat in enumerate(sorted(main_categories), 1):
@@ -63,10 +56,10 @@ class CategorySelector:
                 for main_cat in selected_mains:
                     # Add all subcategories for selected main category
                     for category in self.categories:
-                        if len(category.split(' > ')) > 1 and category.split(' > ')[1] == main_cat:
+                        if category.split(' > ')[1] == main_cat:
                             self.selected_categories.add(category)
                             
-                print("\nSelected categories:")
+                print("\nSelected categories and their subcategories:")
                 for cat in sorted(self.selected_categories):
                     print(f"- {cat}")
                     
