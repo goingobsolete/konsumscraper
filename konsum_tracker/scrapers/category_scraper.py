@@ -1,20 +1,20 @@
-import requests
 from bs4 import BeautifulSoup
-import json
 from datetime import datetime
+import json
 from urllib.parse import urljoin
+from typing import Set, Optional
 
-class KonsumCategoryScraper:
+from .page_downloader import PageDownloader
+
+class CategoryScraper:
     def __init__(self):
         self.base_url = 'https://www.konsum-leipzig.de'
         self.start_url = f"{self.base_url}/online-bestellen/alle-produkte/"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
         self.categories = set()
         self.visited_urls = set()
+        self.downloader = PageDownloader()
 
-    def extract_breadcrumb_path(self, soup):
+    def extract_breadcrumb_path(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract category path from breadcrumbs"""
         breadcrumb = soup.find('nav', class_='content--breadcrumb')
         if breadcrumb:
@@ -24,7 +24,8 @@ class KonsumCategoryScraper:
             return ' > '.join(path_parts) if path_parts else None
         return None
 
-    def scrape_categories(self, url=None):
+    def scrape_categories(self, url: Optional[str] = None) -> None:
+        """Recursively scrape category pages"""
         if url is None:
             url = self.start_url
             
@@ -33,69 +34,64 @@ class KonsumCategoryScraper:
             
         self.visited_urls.add(url)
         
-        try:
-            print(f"Checking: {url}")
-            response = requests.get(url, headers=self.headers)
-            soup = BeautifulSoup(response.text, 'html.parser')
+        print(f"Checking: {url}")
+        content = self.downloader.download_page(url)
+        if not content:
+            return
+            
+        soup = BeautifulSoup(content, 'html.parser')
 
-            # Get current category path from breadcrumbs
-            category_path = self.extract_breadcrumb_path(soup)
-            if category_path:
-                self.categories.add(category_path)
-                print(f"Found category: {category_path}")
+        # Get current category path from breadcrumbs
+        category_path = self.extract_breadcrumb_path(soup)
+        if category_path:
+            self.categories.add(category_path)
+            print(f"Found category: {category_path}")
 
-            # Find subcategory container
-            sidebar = soup.find('div', class_='sidebar--categories-navigation')
-            if sidebar:
-                # Look for subcategory links
-                subcategory_links = sidebar.find_all('a', class_='navigation--link')
-                for link in subcategory_links:
-                    href = link.get('href', '')
-                    # Only follow links to product categories
-                    if '/online-bestellen/alle-produkte/' in href:
-                        full_url = urljoin(self.base_url, href)
-                        if full_url not in self.visited_urls:
-                            self.scrape_categories(full_url)
+        # Find subcategory container
+        sidebar = soup.find('div', class_='sidebar--categories-navigation')
+        if sidebar:
+            # Look for subcategory links
+            subcategory_links = sidebar.find_all('a', class_='navigation--link')
+            for link in subcategory_links:
+                href = link.get('href', '')
+                # Only follow links to product categories
+                if '/online-bestellen/alle-produkte/' in href:
+                    full_url = urljoin(self.base_url, href)
+                    if full_url not in self.visited_urls:
+                        self.scrape_categories(full_url)
 
-        except requests.RequestException as e:
-            print(f"Error accessing {url}: {e}")
-
-    def save_categories(self):
+    def save_categories(self) -> None:
+        """Save scraped categories to files"""
         if not self.categories:
             print("No categories found!")
             return
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Sort categories by depth and alphabetically
-        sorted_categories = sorted(self.categories, 
-                                 key=lambda x: (len(x.split(' > ')), x))
-
-        # Save as JSON
-        json_file = f'konsum_categories_{timestamp}.json'
-        data = {
-            "total_categories": len(sorted_categories),
-            "categories": sorted_categories,
+        # Save categories to config directory
+        config_file = '../config/categories.json'
+        categories_data = {
+            "total_categories": len(self.categories),
+            "categories": sorted(self.categories, key=lambda x: (len(x.split(' > ')), x)),
             "scrape_date": datetime.now().isoformat()
         }
-        with open(json_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(categories_data, f, indent=4, ensure_ascii=False)
 
-        # Save as text
-        txt_file = f'konsum_categories_{timestamp}.txt'
-        with open(txt_file, 'w', encoding='utf-8') as f:
-            for category in sorted_categories:
-                f.write(f"{category}\n")
+        print(f"\nFound {len(self.categories)} categories")
+        print(f"Saved to {config_file}")
 
-        print(f"\nFound {len(sorted_categories)} categories")
-        print(f"Saved to {json_file} and {txt_file}")
-
-if __name__ == "__main__":
+def main():
+    """Run category scraper"""
     try:
         print("Starting category scraper...")
-        scraper = KonsumCategoryScraper()
+        scraper = CategoryScraper()
         scraper.scrape_categories()
     except KeyboardInterrupt:
         print("\nScraping interrupted by user...")
     finally:
         scraper.save_categories()
+
+if __name__ == "__main__":
+    main()
