@@ -1,0 +1,11 @@
+2024-12-19 14:10:38,109 - __main__ - INFO - Running in test mode (first category only)
+2024-12-19 14:10:38,109 - __main__ - INFO - Starting scrape of 1 categories...
+2024-12-19 14:10:38,109 - __main__ - INFO - 
+Processing category: Alle Produkte > Bio, Veggi & Vegan
+2024-12-19 14:10:38,109 - __main__ - INFO - Scraping category: Alle Produkte > Bio, Veggi & Vegan
+2024-12-19 14:10:40,440 - __main__ - ERROR - Failed to download category page: https://www.konsum-leipzig.de/online-bestellen/alle-produkte/bio%2C%20veggi%20%26%20vegan/
+2024-12-19 14:10:40,440 - __main__ - INFO - Found 0 products in category
+2024-12-19 14:10:40,440 - __main__ - INFO - 
+Total products found: 0
+2024-12-19 14:10:40,442 - __main__ - INFO - 
+Saved 0 products to /Users/papaya/Library/CloudStorage/Dropbox/02_Areas/github/konsumScraper/konsum_tracker/data/products_20241219_141040.json
