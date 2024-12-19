@@ -1,8 +1,8 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
 import json
-from urllib.parse import urljoin
-from typing import Set, Optional
+from urllib.parse import urljoin, quote
+from typing import Set, Optional, Dict, List
 from pathlib import Path
 
 from .page_downloader import PageDownloader
@@ -12,11 +12,22 @@ class CategoryScraper:
         print("Initializing CategoryScraper...")  # Debug print
         self.base_url = 'https://www.konsum-leipzig.de'
         self.start_url = f"{self.base_url}/online-bestellen/alle-produkte/"
-        self.categories = set()
+        self.category_map: Dict[str, str] = {}
         self.visited_urls = set()
         self.downloader = PageDownloader()
         self.config_dir = Path(__file__).parent.parent / 'config'
         print(f"Config directory set to: {self.config_dir}")  # Debug print
+
+    def _create_url_from_category(self, category_path: str) -> str:
+        """Convert category path to URL"""
+        try:
+            # Remove "Alle Produkte > " prefix and convert to URL path
+            category_parts = category_path.replace("Alle Produkte > ", "").split(" > ")
+            url_path = "/".join(quote(part.lower()) for part in category_parts)
+            return f"{self.base_url}/online-bestellen/alle-produkte/{url_path}/"
+        except Exception as e:
+            print(f"Error generating URL for category {category_path}: {str(e)}")
+            return ""
 
     def extract_breadcrumb_path(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract category path from breadcrumbs"""
@@ -49,7 +60,8 @@ class CategoryScraper:
 
         category_path = self.extract_breadcrumb_path(soup)
         if category_path:
-            self.categories.add(category_path)
+            # Store the mapping between breadcrumb path and actual URL
+            self.category_map[category_path] = url
             print(f"Found category: {category_path}")
 
         sidebar = soup.find('div', class_='sidebar--categories-navigation')
@@ -66,17 +78,22 @@ class CategoryScraper:
     def save_categories(self) -> None:
         """Save scraped categories to files"""
         print("Attempting to save categories...")  # Debug print
-        if not self.categories:
+        if not self.category_map:
             print("No categories found!")
             return
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        config_file = self.config_dir / 'categories.json'
+        config_file = self.config_dir / 'categories_with_urls.json'
         self.config_dir.mkdir(parents=True, exist_ok=True)
         
         categories_data = {
-            "total_categories": len(self.categories),
-            "categories": sorted(self.categories, key=lambda x: (len(x.split(' > ')), x)),
+            "total_categories": len(self.category_map),
+            "categories": [
+                {
+                    "breadcrumb_path": path, 
+                    "url": url
+                } for path, url in sorted(self.category_map.items(), key=lambda x: (len(x[0].split(' > ')), x[0]))
+            ],
             "scrape_date": datetime.now().isoformat()
         }
         
@@ -84,7 +101,7 @@ class CategoryScraper:
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(categories_data, f, indent=4, ensure_ascii=False)
 
-        print(f"\nFound {len(self.categories)} categories")
+        print(f"\nFound {len(self.category_map)} categories")
         print(f"Saved to {config_file}")
 
 def main():
